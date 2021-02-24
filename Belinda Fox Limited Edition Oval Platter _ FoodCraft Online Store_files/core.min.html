@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<!-- saved from url=(0120)https://edge.personalizer.io/storefront/2.0.0/js/channel/core.min.html?key=vvxyc-x5x9sa7o6s2bb-x1oph&channelID=lsChannel -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>LimeSpot conversion helper</title><meta http-equiv="X-UA-Compatible" content="IE=edge, chrome=1"><meta name="viewport" content="width=device-width,initial-scale=1"><script async="" src="./core-bundle.min.js.download"></script><script>function api(method, endpointUrl, params, successCallback, errorCallback, cache) {
+        endpointUrl = LimeSpot.ApiServerUrl + endpointUrl;
+        if (!errorCallback) {
+          errorCallback = function (request, textStatus, errorThrown) {
+            var errorMessage = request.responseText;
+
+            if (typeof errorMessage != 'undefined') {
+              try {
+                var errorObject = JSON.parse(errorMessage);
+                if (typeof errorObject != 'undefined') errorMessage = errorObject.Message;
+              } catch (e) {}
+            } else if (errorThrown) {
+              if (errorThrown.code == 19)
+                //A network error occurred.
+                errorMessage =
+                  'Method is undefined or Web API Server is not accessible at ' + endpointUrl;
+              else if (errorThrown.message != '' && errorThrown.message != undefined)
+                errorMessage = errorThrown.message;
+            } else errorMessage = 'Unknown error!';
+
+            var now = new Date();
+            var traceTimeTag = now.toTimeString().substr(0, 8) + now.getMilliseconds().toString();
+            if (params)
+              console.error(`
+                ${traceTimeTag} [${method} ${endpointUrl} ${JSON.stringify(params)}] - ${
+                request.status
+              } - ${errorMessage}`);
+            else
+              console.error(`
+                ${traceTimeTag} [${method} ${endpointUrl}] - ${request.status} - ${errorMessage}`);
+          };
+        }
+
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState == 4) {
+            if (xhr.status == 200) {
+              if (successCallback) successCallback(JSON.parse(xhr.responseText));
+            } else if (xhr.status == 204) {
+              if (successCallback) successCallback();
+            } else {
+              errorCallback(xhr, xhr.statusText, xhr.errorThrown);
+            }
+          }
+        };
+
+        if (!cache)
+          endpointUrl =
+            endpointUrl +
+            ((endpointUrl.indexOf('?') < 0 ? '?' : '&') + new Date().getTime().toString());
+
+        xhr.open(method, endpointUrl, true);
+        xhr.setRequestHeader('X-Personalizer-Context-ID', LimeSpot.Context.ContextID);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+
+        if (params) xhr.send(JSON.stringify(params));
+        else xhr.send();
+      }
+
+      var syncUserParams;
+      function handleRequest(method, params, successCallback, errorCallback) {
+        switch (method) {
+          case 'GetUserID':
+            successCallback({
+              UserID: LimeSpot.GetLocalStorageValue('lsUserID'),
+              EncUserID: LimeSpot.GetLocalStorageValue('lsEncUserID'),
+            });
+            break;
+
+          case 'SyncUserID':
+            var channelUserID = LimeSpot.GetLocalStorageValue('lsUserID');
+            var channelEncUserID = LimeSpot.GetLocalStorageValue('lsEncUserID');
+
+            if (!channelUserID || !channelEncUserID) {
+              LimeSpot.SetLocalStorageValue('lsUserID', params.UserID || '');
+              LimeSpot.SetLocalStorageValue('lsEncUserID', params.EncUserID || '');
+              successCallback(null);
+            } else if (channelUserID != params.UserID) {
+              connectUser(channelUserID, channelEncUserID, successCallback);
+            } else {
+              LimeSpot.SetLocalStorageValue('lsEncUserID', params.EncUserID || '');
+              successCallback(null);
+            }
+            break;
+        }
+      }
+
+      function connectUser(connectingUserID, encConnectingUserID, successCallback) {
+        // comparing string values of null and undefined as they might be stored in localStorage as string
+        var endpoint =
+          encConnectingUserID &&
+          encConnectingUserID !== 'undefined' &&
+          encConnectingUserID !== 'null'
+            ? '/v1/users?encConnectingUserID=' + encConnectingUserID
+            : '/v1/users?connectingUserID=' + connectingUserID;
+
+        api('PUT', endpoint, null, function (connectedDetails) {
+          if (connectedDetails.UserID != connectingUserID) {
+            LimeSpot.SetLocalStorageValue('lsUserID', connectedDetails.UserID || '');
+            LimeSpot.SetLocalStorageValue('lsEncUserID', connectedDetails.EncUserID || '');
+          }
+
+          successCallback({
+            UserID: connectedDetails.UserID,
+            EncUserID: connectedDetails.EncUserID,
+          });
+        });
+      }</script></head><body></body></html>
